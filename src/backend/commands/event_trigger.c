@@ -37,6 +37,7 @@
 #include "miscadmin.h"
 #include "parser/parse_func.h"
 #include "pgstat.h"
+#include "tcop/ddldeparse.h"
 #include "tcop/deparse_utility.h"
 #include "tcop/utility.h"
 #include "utils/acl.h"
