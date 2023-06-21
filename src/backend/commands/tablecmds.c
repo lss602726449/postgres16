@@ -4742,6 +4742,9 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			cmd = ATParseTransformCmd(wqueue, tab, rel, cmd, recurse, lockmode,
 									  AT_PASS_UNSET, context);
 			Assert(cmd != NULL);
+
+			EventTriggerAlterTypeStart(cmd, rel);
+
 			/* Performs own recursion */
 			ATPrepAlterColumnType(wqueue, tab, rel, recurse, recursing, cmd,
 								  lockmode, context);
@@ -5013,6 +5016,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 {
 	ObjectAddress address = InvalidObjectAddress;
 	Relation	rel = tab->rel;
+	bool		commandCollected = false;
 
 	switch (cmd->subtype)
 	{
@@ -5136,6 +5140,8 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 		case AT_AlterColumnType:	/* ALTER COLUMN TYPE */
 			/* parse transformation was done earlier */
 			address = ATExecAlterColumnType(tab, rel, cmd, lockmode);
+			EventTriggerAlterTypeEnd((Node *) cmd, address, tab->rewrite);
+			commandCollected = true;
 			break;
 		case AT_AlterColumnGenericOptions:	/* ALTER COLUMN OPTIONS */
 			address =
@@ -5308,8 +5314,8 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 	/*
 	 * Report the subcommand to interested event triggers.
 	 */
-	if (cmd)
-		EventTriggerCollectAlterTableSubcmd((Node *) cmd, address);
+	if (cmd && !commandCollected)
+		EventTriggerCollectAlterTableSubcmd((Node *) cmd, address, tab->rewrite);
 
 	/*
 	 * Bump the command counter to ensure the next subcommand in the sequence

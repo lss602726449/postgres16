@@ -2326,22 +2326,13 @@ deparse_AlterTableStmt(CollectedCommand *cmd)
 					 */
 					if (def->raw_default)
 					{
-						Datum		deparsed;
-						char	   *defexpr;
-						List	   *exprs = NIL;
-
-						exprs = lappend(exprs, def->cooked_default);
-						defexpr = nodeToString(def->cooked_default);
-						deparsed = DirectFunctionCall2(pg_get_expr,
-													   CStringGetTextDatum(defexpr),
-													   RelationGetRelid(rel));
 						appendStringInfoString(&fmtSub, " %{using}s");
 						insert_jsonb_key(state, "using");
 						pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 						new_jsonb_VA(state, 2,
 									 "fmt", jbvString, "USING %{expression}s",
 									 "expression", jbvString,
-									 TextDatumGetCString(deparsed));
+									 sub->usingexpr);
 						pushJsonbValue(&state, WJB_END_OBJECT, NULL);
 					}
 
