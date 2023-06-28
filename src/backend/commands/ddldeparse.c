@@ -363,11 +363,16 @@ insert_identity_object(JsonbParseState *state, Oid nspid, char *relname)
  * CACHE %{value}
  */
 static inline void
-deparse_Seq_Cache(JsonbParseState *state, Form_pg_sequence seqdata)
+deparse_Seq_Cache(JsonbParseState *state, Form_pg_sequence seqdata,
+				  bool alter_table)
 {
+	char	   *fmt;
+
+	fmt = alter_table ? "SET CACHE %{value}s" : "CACHE %{value}s";
+
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 	new_jsonb_VA(state, 3,
-				 "fmt", jbvString, "CACHE %{value}s",
+				 "fmt", jbvString, fmt,
 				 "clause", jbvString, "cache",
 				 "value", jbvString,
 				 psprintf(INT64_FORMAT, seqdata->seqcache));
@@ -378,16 +383,22 @@ deparse_Seq_Cache(JsonbParseState *state, Form_pg_sequence seqdata)
  * Deparse the sequence CYCLE option to Jsonb.
  *
  * Verbose syntax
+ * SET %{no}s CYCLE
+ * OR
  * %{no}s CYCLE
  */
 static inline void
-deparse_Seq_Cycle(JsonbParseState *state, Form_pg_sequence seqdata)
+deparse_Seq_Cycle(JsonbParseState *state, Form_pg_sequence seqdata,
+				  bool alter_table)
 {
 	StringInfoData fmtStr;
 
 	initStringInfo(&fmtStr);
 
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+	if (alter_table)
+		appendStringInfoString(&fmtStr, "SET ");
 
 	if (!seqdata->seqcycle)
 	{
@@ -408,14 +419,22 @@ deparse_Seq_Cycle(JsonbParseState *state, Form_pg_sequence seqdata)
  * Deparse the sequence INCREMENT BY option to Jsonb
  *
  * Verbose syntax
+ * SET INCREMENT BY %{value}s
+ * OR
  * INCREMENT BY %{value}s
  */
 static inline void
-deparse_Seq_IncrementBy(JsonbParseState *state, Form_pg_sequence seqdata)
+deparse_Seq_IncrementBy(JsonbParseState *state, Form_pg_sequence seqdata,
+						bool alter_table)
 {
+	char	   *fmt;
+
+	fmt = alter_table ? "SET INCREMENT BY %{value}s"
+		: "INCREMENT BY %{value}s";
+
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 	new_jsonb_VA(state, 3,
-				 "fmt", jbvString, "INCREMENT BY %{value}s",
+				 "fmt", jbvString, fmt,
 				 "clause", jbvString, "seqincrement",
 				 "value", jbvString,
 				 psprintf(INT64_FORMAT, seqdata->seqincrement));
@@ -426,14 +445,21 @@ deparse_Seq_IncrementBy(JsonbParseState *state, Form_pg_sequence seqdata)
  * Deparse the sequence MAXVALUE option to Jsonb.
  *
  * Verbose syntax
+ * SET MAXVALUE %{value}s
+ * OR
  * MAXVALUE %{value}s
  */
 static inline void
-deparse_Seq_Maxvalue(JsonbParseState *state, Form_pg_sequence seqdata)
+deparse_Seq_Maxvalue(JsonbParseState *state, Form_pg_sequence seqdata,
+					 bool alter_table)
 {
+	char	   *fmt;
+
+	fmt = alter_table ? "SET MAXVALUE %{value}s" : "MAXVALUE %{value}s";
+
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 	new_jsonb_VA(state, 3,
-				 "fmt", jbvString, "MAXVALUE %{value}s",
+				 "fmt", jbvString, fmt,
 				 "clause", jbvString, "maxvalue",
 				 "value", jbvString,
 				 psprintf(INT64_FORMAT, seqdata->seqmax));
@@ -444,14 +470,21 @@ deparse_Seq_Maxvalue(JsonbParseState *state, Form_pg_sequence seqdata)
  * Deparse the sequence MINVALUE option to Jsonb
  *
  * Verbose syntax
+ * SET MINVALUE %{value}s
+ * OR
  * MINVALUE %{value}s
  */
 static inline void
-deparse_Seq_Minvalue(JsonbParseState *state, Form_pg_sequence seqdata)
+deparse_Seq_Minvalue(JsonbParseState *state, Form_pg_sequence seqdata,
+					 bool alter_table)
 {
+	char	   *fmt;
+
+	fmt = alter_table ? "SET MINVALUE %{value}s" : "MINVALUE %{value}s";
+
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 	new_jsonb_VA(state, 3,
-				 "fmt", jbvString, "MINVALUE %{value}s",
+				 "fmt", jbvString, fmt,
 				 "clause", jbvString, "minvalue",
 				 "value", jbvString,
 				 psprintf(INT64_FORMAT, seqdata->seqmin));
@@ -465,7 +498,8 @@ deparse_Seq_Minvalue(JsonbParseState *state, Form_pg_sequence seqdata)
  * OWNED BY %{owner}D
  */
 static void
-deparse_Seq_OwnedBy(JsonbParseState *state, Oid sequenceId)
+deparse_Seq_OwnedBy(JsonbParseState *state, Oid sequenceId,
+					bool alter_table)
 {
 	Relation	depRel;
 	SysScanDesc scan;
@@ -550,14 +584,21 @@ deparse_Seq_OwnedBy(JsonbParseState *state, Oid sequenceId)
  * Deparse the sequence START WITH option to Jsonb.
  *
  * Verbose syntax
+ * SET START WITH %{value}s
+ * OR
  * START WITH %{value}s
  */
 static inline void
-deparse_Seq_Startwith(JsonbParseState *state, Form_pg_sequence seqdata)
+deparse_Seq_Startwith(JsonbParseState *state,
+					  Form_pg_sequence seqdata, bool alter_table)
 {
+	char	   *fmt;
+
+	fmt = alter_table ? "SET START WITH %{value}s" : "START WITH %{value}s";
+
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 	new_jsonb_VA(state, 3,
-				 "fmt", jbvString, "START WITH %{value}s",
+				 "fmt", jbvString, fmt,
 				 "clause", jbvString, "start",
 				 "value", jbvString,
 				 psprintf(INT64_FORMAT, seqdata->seqstart));
@@ -601,15 +642,17 @@ deparse_Seq_As(JsonbParseState *state, Form_pg_sequence seqdata)
  * Deparse the definition of column identity to Jsonb.
  *
  * Verbose syntax
- * %{identity_type}s ( %{seq_definition: }s )
- * where identity_type is: "GENERATED %{option}s AS IDENTITY"
+ * SET GENERATED %{option}s %{seq_definition: }s
+ * OR
+ * GENERATED %{option}s AS IDENTITY ( %{seq_definition: }s )
  */
 static void
 deparse_ColumnIdentity(JsonbParseState *state, char *parentKey,
-					   Oid seqrelid, char identity)
+					   Oid seqrelid, char identity, bool alter_table)
 {
 	Form_pg_sequence seqform;
 	Sequence_values *seqvalues;
+	char	   *identfmt;
 	StringInfoData fmtStr;
 
 	initStringInfo(&fmtStr);
@@ -631,10 +674,11 @@ deparse_ColumnIdentity(JsonbParseState *state, char *parentKey,
 		insert_jsonb_key(state, "identity_type");
 
 		pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+		identfmt = alter_table ? "SET GENERATED %{option}s" :
+			"GENERATED %{option}s AS IDENTITY";
 
 		new_jsonb_VA(state, 2,
-					 "fmt", jbvString,
-					 "GENERATED %{option}s AS IDENTITY",
+					 "fmt", jbvString, identfmt,
 					 "option", jbvString,
 					 (identity == ATTRIBUTE_IDENTITY_ALWAYS ?
 					  "ALWAYS" : "BY DEFAULT"));
@@ -644,7 +688,8 @@ deparse_ColumnIdentity(JsonbParseState *state, char *parentKey,
 	/* seq_definition array object creation */
 	insert_jsonb_key(state, "seq_definition");
 
-	appendStringInfoString(&fmtStr, " ( %{seq_definition: }s )");
+	appendStringInfoString(&fmtStr, alter_table ? " %{seq_definition: }s" :
+						   " ( %{seq_definition: }s )");
 
 	pushJsonbValue(&state, WJB_BEGIN_ARRAY, NULL);
 
@@ -652,12 +697,12 @@ deparse_ColumnIdentity(JsonbParseState *state, char *parentKey,
 	seqform = seqvalues->seqform;
 
 	/* Definition elements */
-	deparse_Seq_Cache(state, seqform);
-	deparse_Seq_Cycle(state, seqform);
-	deparse_Seq_IncrementBy(state, seqform);
-	deparse_Seq_Minvalue(state, seqform);
-	deparse_Seq_Maxvalue(state, seqform);
-	deparse_Seq_Startwith(state, seqform);
+	deparse_Seq_Cache(state, seqform, alter_table);
+	deparse_Seq_Cycle(state, seqform, alter_table);
+	deparse_Seq_IncrementBy(state, seqform, alter_table);
+	deparse_Seq_Minvalue(state, seqform, alter_table);
+	deparse_Seq_Maxvalue(state, seqform, alter_table);
+	deparse_Seq_Startwith(state, seqform, alter_table);
 	deparse_Seq_Restart(state, seqvalues->last_value);
 	/* We purposefully do not emit OWNED BY here */
 
@@ -685,7 +730,8 @@ deparse_ColumnIdentity(JsonbParseState *state, char *parentKey,
  */
 static void
 deparse_ColumnDef(JsonbParseState *state, Relation relation,
-				  List *dpcontext, bool composite, ColumnDef *coldef)
+				  List *dpcontext, bool composite, ColumnDef *coldef,
+				  bool is_alter)
 {
 	Oid			relid = RelationGetRelid(relation);
 	HeapTuple	attrTup;
@@ -790,6 +836,9 @@ deparse_ColumnDef(JsonbParseState *state, Relation relation,
 			}
 		}
 
+		if (is_alter && coldef->is_not_null)
+			saw_notnull = true;
+
 		/* NOT NULL */
 		if (saw_notnull)
 		{
@@ -836,7 +885,7 @@ deparse_ColumnDef(JsonbParseState *state, Relation relation,
 				appendStringInfoString(&fmtStr, " %{identity_column}s");
 				deparse_ColumnIdentity(state, "identity_column",
 									   seqrelid,
-									   coldef->identity);
+									   coldef->identity, is_alter);
 			}
 		}
 
@@ -1036,7 +1085,7 @@ deparse_TableElems(JsonbParseState *state, Relation relation,
 												(ColumnDef *) elt);
 					else
 						deparse_ColumnDef(state, relation, dpcontext,
-										  composite, (ColumnDef *) elt);
+										  composite, (ColumnDef *) elt, false);
 				}
 				break;
 			case T_Constraint:
@@ -1271,6 +1320,93 @@ deparse_DefElem(JsonbParseState *state, DefElem *elem, bool is_reset)
 
 	new_jsonb_VA(state, 1, "fmt", jbvString, fmtStr.data);
 	pfree(fmtStr.data);
+
+	pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+}
+
+/*
+ * Deparse SET/RESET as used by
+ * ALTER TABLE ... ALTER COLUMN ... SET/RESET (...)
+ *
+ * Verbose syntax
+ * ALTER COLUMN %{column}I RESET|SET (%{options:, }s)
+ */
+static void
+deparse_ColumnSetOptions(JsonbParseState *state, AlterTableCmd *subcmd)
+{
+	ListCell   *cell;
+	bool		is_reset = subcmd->subtype == AT_ResetOptions;
+	bool		elem_found PG_USED_FOR_ASSERTS_ONLY = false;
+
+	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+	new_jsonb_VA(state, 3,
+				 "fmt", jbvString, "ALTER COLUMN %{column}I"
+				 " %{option}s (%{options:, }s)",
+				 "column", jbvString, subcmd->name,
+				 "option", jbvString, is_reset ? "RESET" : "SET");
+
+	insert_jsonb_key(state, "options");
+	pushJsonbValue(&state, WJB_BEGIN_ARRAY, NULL);
+
+	foreach(cell, (List *) subcmd->def)
+	{
+		DefElem    *elem;
+
+		elem = (DefElem *) lfirst(cell);
+		deparse_DefElem(state, elem, is_reset);
+
+#ifdef USE_ASSERT_CHECKING
+		elem_found = true;
+#endif
+	}
+
+	pushJsonbValue(&state, WJB_END_ARRAY, NULL);
+
+	Assert(elem_found);
+
+	pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+}
+
+/*
+ * Deparse SET/RESET as used by ALTER TABLE ... SET/RESET (...)
+ *
+ * Verbose syntax
+ * RESET|SET (%{options:, }s)
+ */
+static void
+deparse_RelSetOptions(JsonbParseState *state, AlterTableCmd *subcmd)
+{
+	ListCell   *cell;
+	bool		is_reset = subcmd->subtype == AT_ResetRelOptions;
+	bool		elem_found PG_USED_FOR_ASSERTS_ONLY = false;
+
+	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+	new_jsonb_VA(state, 2,
+				 "fmt", jbvString, "%{set_reset}s (%{options:, }s)",
+				 "set_reset", jbvString, is_reset ? "RESET" : "SET");
+
+	/* insert options array */
+	insert_jsonb_key(state, "options");
+
+	pushJsonbValue(&state, WJB_BEGIN_ARRAY, NULL);
+
+	foreach(cell, (List *) subcmd->def)
+	{
+		DefElem    *elem;
+
+		elem = (DefElem *) lfirst(cell);
+		deparse_DefElem(state, elem, is_reset);
+
+#ifdef USE_ASSERT_CHECKING
+		elem_found = true;
+#endif
+	}
+
+	pushJsonbValue(&state, WJB_END_ARRAY, NULL);
+
+	Assert(elem_found);
 
 	pushJsonbValue(&state, WJB_END_OBJECT, NULL);
 }
@@ -1576,6 +1712,1281 @@ deparse_drop_table(const char *objidentity, Node *parsetree)
 }
 
 /*
+ * Deparse all the collected subcommands and return jsonb string representing
+ * the alter command.
+ *
+ * Verbose syntax
+ * ALTER TABLE %{only}s %{identity}D %{subcmds:, }s
+ */
+static Jsonb *
+deparse_AlterTableStmt(CollectedCommand *cmd)
+{
+	List	   *dpcontext;
+	Relation	rel;
+	ListCell   *cell;
+	Oid			relId = cmd->d.alterTable.objectId;
+	AlterTableStmt *stmt = NULL;
+	StringInfoData fmtStr;
+	JsonbParseState *state = NULL;
+	bool		subCmdArray = false;
+	JsonbValue *value;
+
+	Assert(cmd->type == SCT_AlterTable);
+	stmt = (AlterTableStmt *) cmd->parsetree;
+
+	Assert(IsA(stmt, AlterTableStmt) || IsA(stmt, AlterTableMoveAllStmt));
+
+	initStringInfo(&fmtStr);
+
+	/*
+	 * ALTER TABLE subcommands generated for TableLikeClause is processed in
+	 * the top level CREATE TABLE command; return empty here.
+	 */
+	if (IsA(stmt, AlterTableStmt) && stmt->table_like)
+		return NULL;
+
+	rel = relation_open(relId, AccessShareLock);
+
+	if (rel->rd_rel->relkind != RELKIND_RELATION &&
+		rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+	{
+		/* unsupported relkind */
+		table_close(rel, AccessShareLock);
+		return NULL;
+	}
+
+	dpcontext = deparse_context_for(RelationGetRelationName(rel), relId);
+
+	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+	/* Start constructing fmt string */
+	appendStringInfoString(&fmtStr, "ALTER TABLE");
+
+	if (!stmt->relation->inh)
+	{
+		appendStringInfoString(&fmtStr, " %{only}s");
+		new_jsonb_VA(state, 1, "only", jbvString, "ONLY");
+	}
+
+	appendStringInfoString(&fmtStr, " %{identity}D");
+	insert_identity_object(state, rel->rd_rel->relnamespace,
+						   RelationGetRelationName(rel));
+
+	foreach(cell, cmd->d.alterTable.subcmds)
+	{
+		CollectedATSubcmd *sub = (CollectedATSubcmd *) lfirst(cell);
+		AlterTableCmd *subcmd = (AlterTableCmd *) sub->parsetree;
+
+		Assert(IsA(subcmd, AlterTableCmd));
+
+		/*
+		 * Skip deparse of the subcommand if the objectId doesn't match the
+		 * target relation ID. It can happen for inherited tables when
+		 * subcommands for inherited tables and the parent table are both
+		 * collected in the ALTER TABLE command for the parent table.
+		 */
+		if (subcmd->subtype != AT_AttachPartition &&
+			sub->address.objectId != relId &&
+			has_superclass(sub->address.objectId))
+			continue;
+
+		/* Mark the begin of subcmds array */
+		if (!subCmdArray)
+		{
+			appendStringInfoString(&fmtStr, " %{subcmds:, }s");
+			insert_jsonb_key(state, "subcmds");
+			pushJsonbValue(&state, WJB_BEGIN_ARRAY, NULL);
+			subCmdArray = true;
+		}
+
+		switch (subcmd->subtype)
+		{
+			case AT_AddColumn:
+				{
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/* XXX need to set the "recurse" bit somewhere? */
+					Assert(IsA(subcmd->def, ColumnDef));
+
+					/*
+					 * Syntax: ADD COLUMN %{if_not_exists}s %{definition}s"
+					 * where definition: "%{name}I %{coltype}T STORAGE
+					 * %{colstorage}s %{compression}s %{collation}s
+					 * %{not_null}s %{default}s %{identity_column}s
+					 * %{generated_column}s"
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					appendStringInfoString(&fmtSub, "ADD COLUMN");
+					new_jsonb_VA(state, 1, "type", jbvString, "add column");
+
+					if (subcmd->missing_ok)
+					{
+						appendStringInfoString(&fmtSub, " %{if_not_exists}s");
+						new_jsonb_VA(state, 1,
+									 "if_not_exists", jbvString, "IF NOT EXISTS");
+					}
+
+					/* Push definition key-value pair */
+					appendStringInfoString(&fmtSub, " %{definition}s");
+					insert_jsonb_key(state, "definition");
+
+					deparse_ColumnDef(state, rel, dpcontext,
+									  false, (ColumnDef *) subcmd->def,
+									  true);
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					break;
+				}
+
+			case AT_AddIndexConstraint:
+				{
+					IndexStmt  *istmt;
+					Relation	idx;
+					Oid			conOid = sub->address.objectId;
+
+					Assert(IsA(subcmd->def, IndexStmt));
+					istmt = (IndexStmt *) subcmd->def;
+
+					Assert(istmt->isconstraint && istmt->unique);
+
+					idx = relation_open(istmt->indexOid, AccessShareLock);
+
+					/*
+					 * Syntax: ADD CONSTRAINT %{name}I %{constraint_type}s
+					 * USING INDEX %index_name}I %{deferrable}s
+					 * %{init_deferred}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					new_jsonb_VA(state, 7,
+								 "fmt", jbvString,
+								 "ADD CONSTRAINT %{name}I %{constraint_type}s"
+								 " USING INDEX %{index_name}I %{deferrable}s"
+								 " %{init_deferred}s",
+								 "type", jbvString, "add constraint using index",
+								 "name", jbvString, get_constraint_name(conOid),
+								 "constraint_type", jbvString,
+								 istmt->primary ? "PRIMARY KEY" : "UNIQUE",
+								 "index_name", jbvString,
+								 RelationGetRelationName(idx),
+								 "deferrable", jbvString,
+								 istmt->deferrable ? "DEFERRABLE" :
+								 "NOT DEFERRABLE",
+								 "init_deferred", jbvString,
+								 istmt->initdeferred ? "INITIALLY DEFERRED" :
+								 "INITIALLY IMMEDIATE");
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					relation_close(idx, AccessShareLock);
+					break;
+				}
+			case AT_ReAddIndex:
+			case AT_ReAddConstraint:
+			case AT_ReAddDomainConstraint:
+			case AT_ReAddComment:
+			case AT_ReplaceRelOptions:
+			case AT_CheckNotNull:
+			case AT_ReAddStatistics:
+				/* Subtypes used for internal operations; nothing to do here */
+				break;
+
+			case AT_ColumnDefault:
+				if (subcmd->def == NULL)
+				{
+					/*
+					 * Syntax: ALTER COLUMN %{column}I DROP DEFAULT
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					new_jsonb_VA(state, 3,
+								 "fmt", jbvString,
+								 "ALTER COLUMN %{column}I DROP DEFAULT",
+								 "type", jbvString, "drop default",
+								 "column", jbvString, subcmd->name);
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				}
+				else
+				{
+					List	   *dpcontext_rel;
+					HeapTuple	attrtup;
+					AttrNumber	attno;
+
+					dpcontext_rel = deparse_context_for(
+														RelationGetRelationName(rel),
+														RelationGetRelid(rel));
+					attrtup = SearchSysCacheAttName(RelationGetRelid(rel),
+													subcmd->name);
+					attno = ((Form_pg_attribute) GETSTRUCT(attrtup))->attnum;
+
+					/*
+					 * Syntax: ALTER COLUMN %{column}I SET DEFAULT
+					 * %{definition}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					new_jsonb_VA(state, 4,
+								 "fmt", jbvString,
+								 "ALTER COLUMN %{column}I SET DEFAULT"
+								 " %{definition}s",
+								 "type", jbvString, "set default",
+								 "column", jbvString, subcmd->name,
+								 "definition", jbvString,
+								 relation_get_column_default(rel, attno,
+															 dpcontext_rel));
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					ReleaseSysCache(attrtup);
+				}
+
+				break;
+
+			case AT_DropNotNull:
+
+				/*
+				 * Syntax: ALTER COLUMN %{column}I DROP NOT NULL
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString,
+							 "ALTER COLUMN %{column}I DROP NOT NULL",
+							 "type", jbvString, "drop not null",
+							 "column", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_ForceRowSecurity:
+
+				/*
+				 * Syntax: FORCE ROW LEVEL SECURITY
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 1, "fmt", jbvString,
+							 "FORCE ROW LEVEL SECURITY");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_NoForceRowSecurity:
+
+				/*
+				 * Syntax: NO FORCE ROW LEVEL SECURITY
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 1, "fmt", jbvString,
+							 "NO FORCE ROW LEVEL SECURITY");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetNotNull:
+
+				/*
+				 * Syntax: ALTER COLUMN %{column}I SET NOT NULL
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString,
+							 "ALTER COLUMN %{column}I SET NOT NULL",
+							 "type", jbvString, "set not null",
+							 "column", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DropExpression:
+				{
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: ALTER COLUMN %{column}I DROP EXPRESSION
+					 * %{if_exists}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					appendStringInfoString(&fmtSub, "ALTER COLUMN"
+										   " %{column}I DROP EXPRESSION");
+					new_jsonb_VA(state, 2,
+								 "type", jbvString, "drop expression",
+								 "column", jbvString, subcmd->name);
+
+					if (subcmd->missing_ok)
+					{
+						appendStringInfoString(&fmtSub, " %{if_exists}s");
+						new_jsonb_VA(state, 1,
+									 "if_exists", jbvString, "IF EXISTS");
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					break;
+				}
+
+			case AT_SetStatistics:
+				Assert(IsA(subcmd->def, Integer));
+
+				/*
+				 * Syntax: ALTER COLUMN %{column}I SET STATISTICS
+				 * %{statistics}n
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 4,
+							 "fmt", jbvString,
+							 "ALTER COLUMN %{column}I SET STATISTICS"
+							 " %{statistics}n",
+							 "type", jbvString, "set statistics",
+							 "column", jbvString, subcmd->name,
+							 "statistics", jbvNumeric,
+							 intVal((Integer *) subcmd->def));
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetOptions:
+			case AT_ResetOptions:
+
+				/*
+				 * Syntax: ALTER COLUMN %{column}I RESET|SET (%{options:, }s)
+				 */
+				deparse_ColumnSetOptions(state, subcmd);
+				break;
+
+			case AT_SetStorage:
+				Assert(IsA(subcmd->def, String));
+
+				/*
+				 * Syntax: ALTER COLUMN %{column}I SET STORAGE %{storage}s
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 4,
+							 "fmt", jbvString,
+							 "ALTER COLUMN %{column}I SET STORAGE"
+							 " %{storage}s",
+							 "type", jbvString, "set storage",
+							 "column", jbvString, subcmd->name,
+							 "storage", jbvString,
+							 strVal((String *) subcmd->def));
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetCompression:
+				Assert(IsA(subcmd->def, String));
+
+				/*
+				 * Syntax: ALTER COLUMN %{column}I SET COMPRESSION
+				 * %{compression_method}s
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 4,
+							 "fmt", jbvString,
+							 "ALTER COLUMN %{column}I SET COMPRESSION"
+							 " %{compression_method}s",
+							 "type", jbvString, "set compression",
+							 "column", jbvString, subcmd->name,
+							 "compression_method", jbvString,
+							 strVal((String *) subcmd->def));
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DropColumn:
+				{
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: DROP COLUMN %{if_exists}s %{column}I
+					 * %{cascade}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					appendStringInfoString(&fmtSub, "DROP COLUMN");
+					new_jsonb_VA(state, 1, "type", jbvString, "drop column");
+
+					if (subcmd->missing_ok)
+					{
+						appendStringInfoString(&fmtSub, " %{if_exists}s");
+						new_jsonb_VA(state, 1,
+									 "if_exists", jbvString, "IF EXISTS");
+					}
+
+					appendStringInfoString(&fmtSub, " %{column}I");
+					new_jsonb_VA(state, 1, "column", jbvString, subcmd->name);
+
+					if (subcmd->behavior == DROP_CASCADE)
+					{
+						appendStringInfoString(&fmtSub, " %{cascade}s");
+						new_jsonb_VA(state, 1,
+									 "cascade", jbvString, "CASCADE");
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+					break;
+				}
+			case AT_AddIndex:
+				{
+					Oid			idxOid = sub->address.objectId;
+					IndexStmt  *istmt PG_USED_FOR_ASSERTS_ONLY =
+						(IndexStmt *) subcmd->def;
+					Relation	idx;
+					const char *idxname;
+					Oid			constrOid;
+
+					Assert(IsA(subcmd->def, IndexStmt));
+					Assert(istmt->isconstraint);
+
+					idx = relation_open(idxOid, AccessShareLock);
+					idxname = RelationGetRelationName(idx);
+
+					constrOid = get_relation_constraint_oid(
+															cmd->d.alterTable.objectId,
+															idxname, false);
+
+					/*
+					 * Syntax: ADD CONSTRAINT %{name}I %{definition}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					new_jsonb_VA(state, 4,
+								 "fmt", jbvString,
+								 "ADD CONSTRAINT %{name}I %{definition}s",
+								 "type", jbvString, "add constraint",
+								 "name", jbvString, idxname,
+								 "definition", jbvString,
+								 pg_get_constraintdef_string(constrOid));
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+					relation_close(idx, AccessShareLock);
+				}
+				break;
+			case AT_AddConstraint:
+				{
+					/* XXX need to set the "recurse" bit somewhere? */
+					Oid			constrOid = sub->address.objectId;
+
+					/* Skip adding constraint for inherits table sub command */
+					if (!OidIsValid(constrOid))
+						continue;
+
+					Assert(IsA(subcmd->def, Constraint));
+
+					/*
+					 * Syntax: ADD CONSTRAINT %{name}I %{definition}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					new_jsonb_VA(state, 4,
+								 "fmt", jbvString,
+								 "ADD CONSTRAINT %{name}I %{definition}s",
+								 "type", jbvString, "add constraint",
+								 "name", jbvString, get_constraint_name(constrOid),
+								 "definition", jbvString,
+								 pg_get_constraintdef_string(constrOid));
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+					break;
+				}
+
+			case AT_AlterConstraint:
+				{
+					Oid			conOid = sub->address.objectId;
+					Constraint *c = (Constraint *) subcmd->def;
+
+					/* If no constraint was altered, silently skip it */
+					if (!OidIsValid(conOid))
+						break;
+
+					Assert(IsA(c, Constraint));
+
+					/*
+					 * Syntax: ALTER CONSTRAINT %{name}I %{deferrable}s
+					 * %{init_deferred}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					new_jsonb_VA(state, 5,
+								 "fmt", jbvString,
+								 "ALTER CONSTRAINT %{name}I %{deferrable}s"
+								 " %{init_deferred}s",
+								 "type", jbvString, "alter constraint",
+								 "name", jbvString, get_constraint_name(conOid),
+								 "deferrable", jbvString,
+								 c->deferrable ? "DEFERRABLE" : "NOT DEFERRABLE",
+								 "init_deferred", jbvString,
+								 c->initdeferred ? "INITIALLY DEFERRED" :
+								 "INITIALLY IMMEDIATE");
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				}
+				break;
+
+			case AT_ValidateConstraint:
+
+				/*
+				 * Syntax: VALIDATE CONSTRAINT %{constraint}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString,
+							 "VALIDATE CONSTRAINT %{constraint}I",
+							 "type", jbvString, "validate constraint",
+							 "constraint", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DropConstraint:
+				{
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: DROP CONSTRAINT %{if_exists}s %{constraint}I
+					 * %{cascade}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					appendStringInfoString(&fmtSub, "DROP CONSTRAINT");
+					new_jsonb_VA(state, 1, "type", jbvString, "drop constraint");
+
+					if (subcmd->missing_ok)
+					{
+						appendStringInfoString(&fmtSub, " %{if_exists}s");
+						new_jsonb_VA(state, 1,
+									 "if_exists", jbvString, "IF EXISTS");
+					}
+
+					appendStringInfoString(&fmtSub, " %{constraint}I");
+					new_jsonb_VA(state, 1,
+								 "constraint", jbvString, subcmd->name);
+
+					if (subcmd->behavior == DROP_CASCADE)
+					{
+						appendStringInfoString(&fmtSub, " %{cascade}s");
+						new_jsonb_VA(state, 1, "cascade", jbvString, "CASCADE");
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				}
+				break;
+
+			case AT_AlterColumnType:
+				{
+					TupleDesc	tupdesc = RelationGetDescr(rel);
+					Form_pg_attribute att;
+					ColumnDef  *def;
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					att = &(tupdesc->attrs[sub->address.objectSubId - 1]);
+					def = (ColumnDef *) subcmd->def;
+					Assert(IsA(def, ColumnDef));
+
+					/*
+					 * Syntax: ALTER COLUMN %{column}I SET DATA TYPE
+					 * %{datatype}T %{collation}s %{using}s where using: USING
+					 * %{expression}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					appendStringInfoString(&fmtSub, "ALTER COLUMN %{column}I"
+										   " SET DATA TYPE %{datatype}T");
+					new_jsonb_VA(state, 2,
+								 "type", jbvString, "alter column type",
+								 "column", jbvString, subcmd->name);
+
+					new_jsonb_for_type(state, "datatype",
+									   att->atttypid, att->atttypmod);
+
+					/* Add a COLLATE clause, if needed */
+					if (OidIsValid(att->attcollation))
+					{
+						appendStringInfoString(&fmtSub, " %{collation}s");
+						insert_collate_object(state, "collation",
+											  "COLLATE %{name}D",
+											  CollationRelationId,
+											  att->attcollation, "name");
+					}
+
+					/*
+					 * If there's a USING clause, transformAlterTableStmt ran
+					 * it through transformExpr and stored the resulting node
+					 * in cooked_default, which we can use here.
+					 */
+					if (def->raw_default)
+					{
+						Datum		deparsed;
+						char	   *defexpr;
+						List	   *exprs = NIL;
+
+						exprs = lappend(exprs, def->cooked_default);
+						defexpr = nodeToString(def->cooked_default);
+						deparsed = DirectFunctionCall2(pg_get_expr,
+													   CStringGetTextDatum(defexpr),
+													   RelationGetRelid(rel));
+						appendStringInfoString(&fmtSub, " %{using}s");
+						insert_jsonb_key(state, "using");
+						pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+						new_jsonb_VA(state, 2,
+									 "fmt", jbvString, "USING %{expression}s",
+									 "expression", jbvString,
+									 TextDatumGetCString(deparsed));
+						pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+
+					pfree(fmtSub.data);
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				}
+				break;
+
+			case AT_ChangeOwner:
+
+				/*
+				 * Syntax: OWNER TO %{owner}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "OWNER TO %{owner}I",
+							 "type", jbvString, "change owner",
+							 "owner", jbvString,
+							 get_rolespec_name(subcmd->newowner));
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_ClusterOn:
+
+				/*
+				 * Syntax: CLUSTER ON %{index}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "CLUSTER ON %{index}I",
+							 "type", jbvString, "cluster on",
+							 "index", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+
+			case AT_DropCluster:
+
+				/*
+				 * Syntax: SET WITHOUT CLUSTER
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "SET WITHOUT CLUSTER",
+							 "type", jbvString, "set without cluster");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetLogged:
+
+				/*
+				 * Syntax: SET LOGGED
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "SET LOGGED",
+							 "type", jbvString, "set logged");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetUnLogged:
+
+				/*
+				 * Syntax: SET UNLOGGED
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "SET UNLOGGED",
+							 "type", jbvString, "set unlogged");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DropOids:
+
+				/*
+				 * Syntax: SET WITHOUT OIDS
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "SET WITHOUT OIDS",
+							 "type", jbvString, "set without oids");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetAccessMethod:
+
+				/*
+				 * Syntax: SET ACCESS METHOD %{access_method}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString,
+							 "SET ACCESS METHOD %{access_method}I",
+							 "type", jbvString, "set access method",
+							 "access_method", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetTableSpace:
+
+				/*
+				 * Syntax: SET TABLESPACE %{tablespace}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "SET TABLESPACE %{tablespace}I",
+							 "type", jbvString, "set tablespace",
+							 "tablespace", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_SetRelOptions:
+			case AT_ResetRelOptions:
+
+				/*
+				 * Syntax: SET|RESET (%{options:, }s)
+				 */
+				deparse_RelSetOptions(state, subcmd);
+				break;
+
+			case AT_EnableTrig:
+
+				/*
+				 * Syntax: ENABLE TRIGGER %{trigger}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "ENABLE TRIGGER %{trigger}I",
+							 "type", jbvString, "enable trigger",
+							 "trigger", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableAlwaysTrig:
+
+				/*
+				 * Syntax: ENABLE ALWAYS TRIGGER %{trigger}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString,
+							 "ENABLE ALWAYS TRIGGER %{trigger}I",
+							 "type", jbvString, "enable always trigger",
+							 "trigger", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableReplicaTrig:
+
+				/*
+				 * Syntax: ENABLE REPLICA TRIGGER %{trigger}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString,
+							 "ENABLE REPLICA TRIGGER %{trigger}I",
+							 "type", jbvString, "enable replica trigger",
+							 "trigger", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DisableTrig:
+
+				/*
+				 * Syntax: DISABLE TRIGGER %{trigger}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "DISABLE TRIGGER %{trigger}I",
+							 "type", jbvString, "disable trigger",
+							 "trigger", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableTrigAll:
+
+				/*
+				 * Syntax: ENABLE TRIGGER ALL
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "ENABLE TRIGGER ALL",
+							 "type", jbvString, "enable trigger all");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DisableTrigAll:
+
+				/*
+				 * Syntax: DISABLE TRIGGER ALL
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "DISABLE TRIGGER ALL",
+							 "type", jbvString, "disable trigger all");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableTrigUser:
+
+				/*
+				 * Syntax: ENABLE TRIGGER USER
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "ENABLE TRIGGER USER",
+							 "type", jbvString, "enable trigger user");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DisableTrigUser:
+
+				/*
+				 * Syntax: DISABLE TRIGGER USER
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "DISABLE TRIGGER USER",
+							 "type", jbvString, "disable trigger user");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableRule:
+
+				/*
+				 * Syntax: ENABLE RULE %{rule}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "ENABLE RULE %{rule}I",
+							 "type", jbvString, "enable rule",
+							 "rule", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableAlwaysRule:
+
+				/*
+				 * Syntax: ENABLE ALWAYS RULE %{rule}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "ENABLE ALWAYS RULE %{rule}I",
+							 "type", jbvString, "enable always rule",
+							 "rule", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableReplicaRule:
+
+				/*
+				 * Syntax: ENABLE REPLICA RULE %{rule}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "ENABLE REPLICA RULE %{rule}I",
+							 "type", jbvString, "enable replica rule",
+							 "rule", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DisableRule:
+
+				/*
+				 * Syntax: DISABLE RULE %{rule}I
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 3,
+							 "fmt", jbvString, "DISABLE RULE %{rule}I",
+							 "type", jbvString, "disable rule",
+							 "rule", jbvString, subcmd->name);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_AddInherit:
+
+				/*
+				 * Syntax: INHERIT %{parent}D
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "INHERIT %{parent}D",
+							 "type", jbvString, "inherit");
+				new_jsonb_for_qualname_id(state, RelationRelationId,
+										  sub->address.objectId, "parent", true);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DropInherit:
+
+				/*
+				 * Syntax: NO INHERIT %{parent}D
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "NO INHERIT %{parent}D",
+							 "type", jbvString, "drop inherit");
+				new_jsonb_for_qualname_id(state, RelationRelationId,
+										  sub->address.objectId, "parent", true);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_AddOf:
+
+				/*
+				 * Syntax: OF %{type_of}T
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "OF %{type_of}T",
+							 "type", jbvString, "add of");
+				new_jsonb_for_type(state, "type_of", sub->address.objectId, -1);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DropOf:
+
+				/*
+				 * Syntax: NOT OF
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "NOT OF",
+							 "type", jbvString, "not of");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_ReplicaIdentity:
+
+				/*
+				 * Syntax: REPLICA IDENTITY %{ident}s
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString,
+							 "REPLICA IDENTITY %{ident}s",
+							 "type", jbvString, "replica identity");
+				switch (((ReplicaIdentityStmt *) subcmd->def)->identity_type)
+				{
+					case REPLICA_IDENTITY_DEFAULT:
+						new_jsonb_VA(state, 1, "ident", jbvString, "DEFAULT");
+						break;
+					case REPLICA_IDENTITY_FULL:
+						new_jsonb_VA(state, 1, "ident", jbvString, "FULL");
+						break;
+					case REPLICA_IDENTITY_NOTHING:
+						new_jsonb_VA(state, 1, "ident", jbvString, "NOTHING");
+						break;
+					case REPLICA_IDENTITY_INDEX:
+						insert_jsonb_key(state, "ident");
+						new_jsonb_VA(state, 2,
+									 "fmt", jbvString, "USING INDEX %{index}I",
+									 "index", jbvString,
+									 ((ReplicaIdentityStmt *) subcmd->def)->name);
+						break;
+				}
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_EnableRowSecurity:
+
+				/*
+				 * Syntax: ENABLE ROW LEVEL SECURITY
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString,
+							 "ENABLE ROW LEVEL SECURITY",
+							 "type", jbvString, "enable row security");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_DisableRowSecurity:
+
+				/*
+				 * Syntax: DISABLE ROW LEVEL SECURITY
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString,
+							 "DISABLE ROW LEVEL SECURITY",
+							 "type", jbvString, "disable row security");
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+
+			case AT_AttachPartition:
+				{
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: ATTACH PARTITION %{partition_identity}D
+					 * %{partition_bound}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					appendStringInfoString(&fmtSub, "ATTACH PARTITION"
+										   " %{partition_identity}D");
+
+					new_jsonb_VA(state, 1, "type", jbvString,
+								 "attach partition");
+					new_jsonb_for_qualname_id(state, RelationRelationId,
+											  sub->address.objectId,
+											  "partition_identity", true);
+
+					if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+					{
+						appendStringInfoString(&fmtSub, " %{partition_bound}s");
+						new_jsonb_VA(state, 1,
+									 "partition_bound", jbvString,
+									 relation_get_part_bound(sub->address.objectId));
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+					break;
+				}
+			case AT_DetachPartition:
+				{
+					PartitionCmd *cmd;
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					Assert(IsA(subcmd->def, PartitionCmd));
+					cmd = (PartitionCmd *) subcmd->def;
+
+					/*
+					 * Syntax: DETACH PARTITION %{partition_identity}D
+					 * %{concurrent}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					appendStringInfoString(&fmtSub, "DETACH PARTITION"
+										   " %{partition_identity}D");
+
+					new_jsonb_VA(state, 1, "type", jbvString, "detach partition");
+					new_jsonb_for_qualname_id(state, RelationRelationId,
+											  sub->address.objectId,
+											  "partition_identity", true);
+					if (cmd->concurrent)
+					{
+						appendStringInfoString(&fmtSub, " %{concurrent}s");
+						new_jsonb_VA(state, 1,
+									 "concurrent", jbvString, "CONCURRENTLY");
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					break;
+				}
+			case AT_DetachPartitionFinalize:
+
+				/*
+				 * Syntax: DETACH PARTITION %{partition_identity}D FINALIZE
+				 */
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 2,
+							 "fmt", jbvString, "DETACH PARTITION"
+							 " %{partition_identity}D FINALIZE",
+							 "type", jbvString, "detach partition finalize");
+
+				new_jsonb_for_qualname_id(state, RelationRelationId,
+										  sub->address.objectId,
+										  "partition_identity", true);
+				pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				break;
+			case AT_AddIdentity:
+				{
+					AttrNumber	attnum;
+					Oid			seq_relid;
+					ColumnDef  *coldef = (ColumnDef *) subcmd->def;
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: ALTER COLUMN %{column}I %{definition}s where
+					 * definition : ADD %{identity_column}s where
+					 * identity_column: %{identity_type}s ( %{seq_definition:
+					 * }s )
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					appendStringInfoString(&fmtSub, "ALTER COLUMN %{column}I");
+					new_jsonb_VA(state, 2,
+								 "type", jbvString, "add identity",
+								 "column", jbvString, subcmd->name);
+
+					attnum = get_attnum(RelationGetRelid(rel), subcmd->name);
+					seq_relid = getIdentitySequence(RelationGetRelid(rel),
+													attnum, true);
+
+					if (OidIsValid(seq_relid))
+					{
+
+						appendStringInfoString(&fmtSub, " %{definition}s");
+						insert_jsonb_key(state, "definition");
+
+						/* insert definition's value now */
+						pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+						new_jsonb_VA(state, 1,
+									 "fmt", jbvString, "ADD %{identity_column}s");
+
+						/* insert identity_column */
+						deparse_ColumnIdentity(state, "identity_column",
+											   seq_relid,
+											   coldef->identity, false);
+
+						/* mark definition's value end */
+						pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+				}
+				break;
+			case AT_SetIdentity:
+				{
+					DefElem    *defel;
+					char		identity = 0;
+					AttrNumber	attnum;
+					Oid			seq_relid;
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: ALTER COLUMN %{column}I %{definition}s where
+					 * definition : %{identity_type}s ( %{seq_definition: }s )
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+					appendStringInfoString(&fmtSub, "ALTER COLUMN %{column}I");
+					new_jsonb_VA(state, 2,
+								 "type", jbvString, "set identity",
+								 "column", jbvString, subcmd->name);
+
+					if (subcmd->def)
+					{
+						List	   *def = (List *) subcmd->def;
+
+						Assert(IsA(subcmd->def, List));
+
+						defel = linitial_node(DefElem, def);
+						identity = defGetInt32(defel);
+					}
+
+					attnum = get_attnum(RelationGetRelid(rel), subcmd->name);
+					seq_relid = getIdentitySequence(RelationGetRelid(rel),
+													attnum, true);
+
+					if (OidIsValid(seq_relid))
+					{
+						appendStringInfoString(&fmtSub, " %{definition}s");
+						deparse_ColumnIdentity(state, "definition",
+											   seq_relid, identity,
+											   true);
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+
+					pfree(fmtSub.data);
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+					break;
+				}
+			case AT_DropIdentity:
+				{
+					StringInfoData fmtSub;
+
+					initStringInfo(&fmtSub);
+
+					/*
+					 * Syntax: ALTER COLUMN %{column}I DROP IDENTITY
+					 * %{if_exists}s
+					 */
+					pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+					appendStringInfoString(&fmtSub, "ALTER COLUMN"
+										   " %{column}I DROP IDENTITY");
+					new_jsonb_VA(state, 2,
+								 "type", jbvString, "drop identity",
+								 "column", jbvString, subcmd->name);
+
+					if (subcmd->missing_ok)
+					{
+						appendStringInfoString(&fmtSub, " %{if_exists}s");
+						new_jsonb_VA(state, 1,
+									 "if_exists", jbvString, "IF EXISTS");
+					}
+
+					/* We have full fmt by now, so add jsonb element for that */
+					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
+					pfree(fmtSub.data);
+
+					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+					break;
+				}
+			default:
+				elog(WARNING, "unsupported alter table subtype %d",
+					 subcmd->subtype);
+				break;
+		}
+	}
+
+	table_close(rel, AccessShareLock);
+
+	/* if subcmds array is not even created or has 0 elements, return NULL */
+	if (!subCmdArray ||
+		((state->contVal.type == jbvArray) &&
+		 (state->contVal.val.array.nElems == 0)))
+	{
+		pfree(fmtStr.data);
+		return NULL;
+	}
+
+	/* Mark the end of subcmds array */
+	pushJsonbValue(&state, WJB_END_ARRAY, NULL);
+
+	/* We have full fmt by now, so add jsonb element for that */
+	new_jsonb_VA(state, 1, "fmt", jbvString, fmtStr.data);
+
+	pfree(fmtStr.data);
+
+	/* Mark the end of ROOT object */
+	value = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+	return JsonbValueToJsonb(value);
+}
+
+/*
  * Deparse a CreateSeqStmt.
  *
  * Given a sequence OID and the parse tree that created it, return Jsonb
@@ -1589,7 +3000,8 @@ deparse_drop_table(const char *objidentity, Node *parsetree)
  * the column default value and sequences creation while parsing.
  *
  * Verbose syntax
- * CREATE %{persistence}s SEQUENCE %{if_not_exists}s %{identity}D %{definition: }s
+ * CREATE %{persistence}s SEQUENCE %{if_not_exists}s %{identity}D
+ * %{definition: }s
  */
 static Jsonb *
 deparse_CreateSeqStmt(Oid objectId, Node *parsetree)
@@ -1653,12 +3065,12 @@ deparse_CreateSeqStmt(Oid objectId, Node *parsetree)
 	pushJsonbValue(&state, WJB_BEGIN_ARRAY, NULL);
 
 	/* Definition elements */
-	deparse_Seq_Cache(state, seqform);
-	deparse_Seq_Cycle(state, seqform);
-	deparse_Seq_IncrementBy(state, seqform);
-	deparse_Seq_Minvalue(state, seqform);
-	deparse_Seq_Maxvalue(state, seqform);
-	deparse_Seq_Startwith(state, seqform);
+	deparse_Seq_Cache(state, seqform, false);
+	deparse_Seq_Cycle(state, seqform, false);
+	deparse_Seq_IncrementBy(state, seqform, false);
+	deparse_Seq_Minvalue(state, seqform, false);
+	deparse_Seq_Maxvalue(state, seqform, false);
+	deparse_Seq_Startwith(state, seqform, false);
 	deparse_Seq_Restart(state, seqvalues->last_value);
 	deparse_Seq_As(state, seqform);
 	/* We purposefully do not emit OWNED BY here */
@@ -1737,21 +3149,21 @@ deparse_AlterSeqStmt(Oid objectId, Node *parsetree)
 		DefElem    *elem = (DefElem *) lfirst(cell);
 
 		if (strcmp(elem->defname, "cache") == 0)
-			deparse_Seq_Cache(state, seqform);
+			deparse_Seq_Cache(state, seqform, false);
 		else if (strcmp(elem->defname, "cycle") == 0)
-			deparse_Seq_Cycle(state, seqform);
+			deparse_Seq_Cycle(state, seqform, false);
 		else if (strcmp(elem->defname, "increment") == 0)
-			deparse_Seq_IncrementBy(state, seqform);
+			deparse_Seq_IncrementBy(state, seqform, false);
 		else if (strcmp(elem->defname, "minvalue") == 0)
-			deparse_Seq_Minvalue(state, seqform);
+			deparse_Seq_Minvalue(state, seqform, false);
 		else if (strcmp(elem->defname, "maxvalue") == 0)
-			deparse_Seq_Maxvalue(state, seqform);
+			deparse_Seq_Maxvalue(state, seqform, false);
 		else if (strcmp(elem->defname, "start") == 0)
-			deparse_Seq_Startwith(state, seqform);
+			deparse_Seq_Startwith(state, seqform, false);
 		else if (strcmp(elem->defname, "restart") == 0)
 			deparse_Seq_Restart(state, seqvalues->last_value);
 		else if (strcmp(elem->defname, "owned_by") == 0)
-			deparse_Seq_OwnedBy(state, objectId);
+			deparse_Seq_OwnedBy(state, objectId, false);
 		else if (strcmp(elem->defname, "as") == 0)
 			deparse_Seq_As(state, seqform);
 		else
@@ -1762,6 +3174,207 @@ deparse_AlterSeqStmt(Oid objectId, Node *parsetree)
 	pushJsonbValue(&state, WJB_END_ARRAY, NULL);
 
 	/* mark the end of ROOT object */
+	value = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+	return JsonbValueToJsonb(value);
+}
+
+/*
+ * Deparse a RenameStmt.
+ *
+ * Verbose syntax
+ * ALTER TABLE %{if_exists}s %{identity}D RENAME TO %{newname}I
+ * OR
+ * ALTER TABLE %{only}s %{identity}D RENAME CONSTRAINT %{oldname}I
+ * TO %{newname}I
+ * OR
+ * ALTER %{objtype}s %{if_exists}s %{only}s %{identity}D RENAME COLUMN
+ * %{colname}I TO %{newname}I %{cascade}s
+ */
+
+static Jsonb *
+deparse_RenameStmt(ObjectAddress address, Node *parsetree)
+{
+	RenameStmt *node = (RenameStmt *) parsetree;
+	Relation	relation;
+	Oid			schemaId;
+	JsonbParseState *state = NULL;
+	JsonbValue *value;
+
+	/*
+	 * In an ALTER .. RENAME command, we don't have the original name of the
+	 * object in system catalogs: since we inspect them after the command has
+	 * executed, the old name is already gone.  Therefore, we extract it from
+	 * the parse node.  Note we still extract the schema name from the catalog
+	 * (it might not be present in the parse node); it cannot possibly have
+	 * changed anyway.
+	 */
+	switch (node->renameType)
+	{
+		case OBJECT_TABLE:
+			relation = relation_open(address.objectId, AccessShareLock);
+			schemaId = RelationGetNamespace(relation);
+
+			pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+			new_jsonb_VA(state, 3,
+						 "fmt", jbvString,
+						 "ALTER TABLE %{if_exists}s %{identity}D"
+						 " RENAME TO %{newname}I",
+						 "if_exists", jbvString,
+						 node->missing_ok ? "IF EXISTS" : "",
+						 "newname", jbvString, node->newname);
+
+			insert_identity_object(state, schemaId, node->relation->relname);
+			value = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+			relation_close(relation, AccessShareLock);
+			break;
+
+		case OBJECT_TABCONSTRAINT:
+			{
+				HeapTuple	constrtup;
+				Form_pg_constraint constform;
+
+				constrtup = SearchSysCache1(CONSTROID,
+											ObjectIdGetDatum(address.objectId));
+				if (!HeapTupleIsValid(constrtup))
+					elog(ERROR, "cache lookup failed for constraint with OID %u",
+						 address.objectId);
+				constform = (Form_pg_constraint) GETSTRUCT(constrtup);
+
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+				new_jsonb_VA(state, 4,
+							 "fmt", jbvString,
+							 "ALTER TABLE %{only}s %{identity}D RENAME"
+							 " CONSTRAINT %{oldname}I TO %{newname}I",
+							 "only", jbvString,
+							 node->relation->inh ? "" : "ONLY",
+							 "oldname", jbvString, node->subname,
+							 "newname", jbvString, node->newname);
+
+				new_jsonb_for_qualname_id(state, RelationRelationId,
+										  constform->conrelid, "identity", true);
+				value = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+				ReleaseSysCache(constrtup);
+			}
+			break;
+
+		case OBJECT_COLUMN:
+			{
+				StringInfoData fmtStr;
+
+				initStringInfo(&fmtStr);
+
+				relation = relation_open(address.objectId, AccessShareLock);
+				schemaId = RelationGetNamespace(relation);
+
+				pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+				appendStringInfoString(&fmtStr, "ALTER %{objtype}s");
+
+				new_jsonb_VA(state, 1,
+							 "objtype", jbvString,
+							 stringify_objtype(node->relationType));
+
+				/* Composite types do not support IF EXISTS */
+				if (node->renameType == OBJECT_COLUMN)
+				{
+					appendStringInfoString(&fmtStr, " %{if_exists}s");
+					new_jsonb_VA(state, 1,
+								 "if_exists", jbvString,
+								 node->missing_ok ? "IF EXISTS" : "");
+				}
+
+				if (!node->relation->inh)
+				{
+					appendStringInfoString(&fmtStr, " %{only}s");
+					new_jsonb_VA(state, 1, "only", jbvString, "ONLY");
+				}
+
+				appendStringInfoString(&fmtStr, " %{identity}D RENAME COLUMN"
+									   " %{colname}I TO %{newname}I");
+				insert_identity_object(state, schemaId, node->relation->relname);
+				new_jsonb_VA(state, 2,
+							 "colname", jbvString, node->subname,
+							 "newname", jbvString, node->newname);
+
+				if (node->renameType == OBJECT_ATTRIBUTE)
+				{
+
+					if (node->behavior == DROP_CASCADE)
+					{
+						appendStringInfoString(&fmtStr, " %{cascade}s");
+						new_jsonb_VA(state, 1, "cascade", jbvString, "CASCADE");
+					}
+				}
+
+				/* We have full fmt by now, so add jsonb element for that */
+				new_jsonb_VA(state, 1, "fmt", jbvString, fmtStr.data);
+
+				pfree(fmtStr.data);
+
+				value = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+
+				relation_close(relation, AccessShareLock);
+				break;
+			}
+
+		default:
+			elog(ERROR, "unsupported object type %d", node->renameType);
+	}
+
+	return JsonbValueToJsonb(value);
+}
+
+/*
+ * Deparse an AlterObjectSchemaStmt (ALTER TABLE... SET SCHEMA command)
+ *
+ * Given the object(table) address and the parse tree that created it, return
+ * Jsonb representing the alter command.
+ *
+ * Verbose syntax
+ * ALTER %{objtype}s %{identity}s SET SCHEMA %{newschema}I
+ */
+static Jsonb *
+deparse_AlterObjectSchemaStmt(ObjectAddress address, Node *parsetree,
+							  ObjectAddress old_schema)
+{
+	AlterObjectSchemaStmt *node = (AlterObjectSchemaStmt *) parsetree;
+	char	   *identity;
+	char	   *new_schema = node->newschema;
+	char	   *old_schname;
+	char	   *ident;
+	JsonbParseState *state = NULL;
+	JsonbValue *value;
+
+	/*
+	 * Since the command has already taken place from the point of view of
+	 * catalogs, getObjectIdentity returns the object name with the already
+	 * changed schema.  The output of our deparsing must return the original
+	 * schema name, however, so we chop the schema name off the identity
+	 * string and then prepend the quoted schema name.
+	 *
+	 * XXX This is pretty clunky. Can we do better?
+	 */
+	identity = getObjectIdentity(&address, false);
+	old_schname = get_namespace_name(old_schema.objectId);
+	if (!old_schname)
+		elog(ERROR, "cache lookup failed for schema with OID %u",
+			 old_schema.objectId);
+
+	ident = psprintf("%s%s", quote_identifier(old_schname),
+					 identity + strlen(quote_identifier(new_schema)));
+
+	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+	new_jsonb_VA(state, 4,
+				 "fmt", jbvString,
+				 "ALTER %{objtype}s %{identity}s SET SCHEMA"
+				 " %{newschema}I",
+				 "objtype", jbvString,
+				 stringify_objtype(node->objectType),
+				 "identity", jbvString, ident,
+				 "newschema", jbvString, new_schema);
 	value = pushJsonbValue(&state, WJB_END_OBJECT, NULL);
 
 	return JsonbValueToJsonb(value);
@@ -1789,6 +3402,11 @@ deparse_simple_command(CollectedCommand *cmd)
 	/* This switch needs to handle everything that ProcessUtilitySlow does */
 	switch (nodeTag(parsetree))
 	{
+		case T_AlterObjectSchemaStmt:
+			return deparse_AlterObjectSchemaStmt(cmd->d.simple.address,
+												 parsetree,
+												 cmd->d.simple.secondaryObject);
+
 		case T_AlterSeqStmt:
 			return deparse_AlterSeqStmt(objectId, parsetree);
 
@@ -1797,6 +3415,8 @@ deparse_simple_command(CollectedCommand *cmd)
 
 		case T_CreateStmt:
 			return deparse_CreateStmt(objectId, parsetree);
+		case T_RenameStmt:
+			return deparse_RenameStmt(cmd->d.simple.address, parsetree);
 
 		default:
 			elog(LOG, "unrecognized node type in deparse command: %d",
@@ -1850,6 +3470,9 @@ deparse_utility_command(CollectedCommand *cmd)
 	{
 		case SCT_Simple:
 			jsonb = deparse_simple_command(cmd);
+			break;
+		case SCT_AlterTable:
+			jsonb = deparse_AlterTableStmt(cmd);
 			break;
 		default:
 			elog(ERROR, "unexpected deparse node type %d", cmd->type);
