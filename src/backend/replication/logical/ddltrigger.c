@@ -158,6 +158,8 @@ publication_deparse_table_rewrite(PG_FUNCTION_ARGS)
 		ddl_deparse_context context;
 		char	   *json_string;
 
+		context.include_owner = true;
+
 		/*
 		 * Initialize the max_volatility flag to PROVOLATILE_IMMUTABLE, which is
 		 * the minimum volatility level.
@@ -249,6 +251,8 @@ publication_deparse_ddl_command_end(PG_FUNCTION_ARGS)
 			ddl_deparse_context context;
 			char	   *json_string;
 
+			context.include_owner = true;
+
 			/*
 			 * Initialize the max_volatility flag to PROVOLATILE_IMMUTABLE, which is
 			 * the minimum volatility level.
@@ -326,6 +330,8 @@ publication_deparse_table_init_write(PG_FUNCTION_ARGS)
 	if (relpersist == RELPERSISTENCE_PERMANENT)
 	{
 		char	   *json_string;
+
+		context.include_owner = true;
 
 		/*
 		 * Initialize the max_volatility flag to PROVOLATILE_IMMUTABLE, which is

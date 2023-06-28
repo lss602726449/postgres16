@@ -696,7 +696,7 @@ expand_jsonb_array(StringInfo buf, char *param,
  * Workhorse for ddl_deparse_expand_command.
  */
 char *
-deparse_ddl_json_to_string(char *json_str)
+deparse_ddl_json_to_string(char *json_str, char** owner)
 {
 	Datum		d;
 	Jsonb	   *jsonb;
@@ -706,6 +706,27 @@ deparse_ddl_json_to_string(char *json_str)
 
 	d = DirectFunctionCall1(jsonb_in, PointerGetDatum(json_str));
 	jsonb = (Jsonb *) DatumGetPointer(d);
+
+	if (owner != NULL)
+	{
+		const char *key = "myowner";
+		JsonbValue *value;
+
+		value = getKeyJsonValueFromContainer(&jsonb->root, key, strlen(key), NULL);
+		if (value)
+		{
+			char *str;
+
+			/* value->val.string.val may not be NULL terminated */
+			str = palloc(value->val.string.len + 1);
+			memcpy(str, value->val.string.val, value->val.string.len);
+			str[value->val.string.len] = '\0';
+			*owner = str;
+		}
+		else
+			/* myowner is not given in this jsonb, e.g. for Drop Commands */
+			*owner = NULL;
+	}
 
 	expand_fmt_recursive(buf, &jsonb->root);
 
@@ -744,7 +765,7 @@ ddl_deparse_expand_command(PG_FUNCTION_ARGS)
 
 	json_str = text_to_cstring(json);
 
-	PG_RETURN_TEXT_P(cstring_to_text(deparse_ddl_json_to_string(json_str)));
+	PG_RETURN_TEXT_P(cstring_to_text(deparse_ddl_json_to_string(json_str, NULL)));
 }
 
 /*

@@ -3341,11 +3341,13 @@ apply_handle_ddl(StringInfo s)
 	const char *prefix = NULL;
 	char	   *message = NULL;
 	char	   *ddl_command;
+	char	   *owner;
 	Size		sz;
 	List	   *parsetree_list;
 	ListCell   *parsetree_item;
 	DestReceiver *receiver;
 	MemoryContext oldcontext;
+	UserContext		ucxt;
 	const char *save_debug_query_string = debug_query_string;
 
 	message = logicalrep_read_ddl(s, &lsn, &prefix, &sz);
@@ -3360,8 +3362,15 @@ apply_handle_ddl(StringInfo s)
 
 	MemoryContextSwitchTo(ApplyMessageContext);
 
-	ddl_command = deparse_ddl_json_to_string(message);
+	ddl_command = deparse_ddl_json_to_string(message, &owner);
 	debug_query_string = ddl_command;
+
+	/*
+	 * If requested, set the current role to the owner that executed the
+	 * command on the publication server.
+	 */
+	if (MySubscription->matchddlowner && owner)
+		SwitchToUntrustedUser(get_role_oid(owner, false), &ucxt);
 
 	/* DestNone for logical replication */
 	receiver = CreateDestReceiver(DestNone);
@@ -3456,6 +3465,9 @@ apply_handle_ddl(StringInfo s)
 		/* Now we may drop the per-parsetree context, if one was created. */
 		MemoryContextDelete(per_parsetree_context);
 	}
+
+	if (MySubscription->matchddlowner && owner)
+		RestoreUserContext(&ucxt);
 
 	debug_query_string = save_debug_query_string;
 

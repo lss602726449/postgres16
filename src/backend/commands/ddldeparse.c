@@ -1509,7 +1509,7 @@ deparse_withObj(JsonbParseState *state, CreateStmt *node)
  * %{with_clause}s %{tablespace}s
  */
 static Jsonb *
-deparse_CreateStmt(Oid objectId, Node *parsetree)
+deparse_CreateStmt(Oid objectId, Node *parsetree, char *owner)
 {
 	CreateStmt *node = (CreateStmt *) parsetree;
 	Relation	relation = relation_open(objectId, AccessShareLock);
@@ -1526,6 +1526,11 @@ deparse_CreateStmt(Oid objectId, Node *parsetree)
 	/* mark the begin of ROOT object and start adding elements to it. */
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
 
+	/* create owner jsonb element */
+	if (owner)
+		new_jsonb_VA(state, 1, "myowner", jbvString, owner);
+
+	/* Start making fmt string */
 	appendStringInfoString(&fmtStr, "CREATE");
 
 	/* PERSISTENCE */
@@ -3063,7 +3068,7 @@ deparse_AlterTableStmt(CollectedCommand *cmd, ddl_deparse_context * context)
  * %{definition: }s
  */
 static Jsonb *
-deparse_CreateSeqStmt(Oid objectId, Node *parsetree)
+deparse_CreateSeqStmt(Oid objectId, Node *parsetree, char *owner)
 {
 	Relation	relation;
 	Form_pg_sequence seqform;
@@ -3086,6 +3091,11 @@ deparse_CreateSeqStmt(Oid objectId, Node *parsetree)
 
 	/* mark the start of ROOT object */
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+	/* create owner jsonb element */
+	if (owner)
+		new_jsonb_VA(state, 1, "myowner", jbvString, owner);
+
 	appendStringInfoString(&fmtStr, "CREATE");
 
 	/* PERSISTENCE */
@@ -3165,7 +3175,7 @@ deparse_CreateSeqStmt(Oid objectId, Node *parsetree)
  * ALTER SEQUENCE %{identity}D %{definition: }s
  */
 static Jsonb *
-deparse_AlterSeqStmt(Oid objectId, Node *parsetree)
+deparse_AlterSeqStmt(Oid objectId, Node *parsetree, char *owner)
 {
 	Relation	relation;
 	ListCell   *cell;
@@ -3186,6 +3196,10 @@ deparse_AlterSeqStmt(Oid objectId, Node *parsetree)
 
 	/* mark the start of ROOT object */
 	pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+	/* create owner jsonb element */
+	if (owner)
+		new_jsonb_VA(state, 1, "myowner", jbvString, owner);
 
 	new_jsonb_VA(state, 1,
 				 "fmt", jbvString, "ALTER SEQUENCE %{identity}D %{definition: }s");
@@ -3445,10 +3459,11 @@ deparse_AlterObjectSchemaStmt(ObjectAddress address, Node *parsetree,
  * This function should cover all cases handled in ProcessUtilitySlow.
  */
 static Jsonb *
-deparse_simple_command(CollectedCommand *cmd)
+deparse_simple_command(CollectedCommand *cmd, ddl_deparse_context * context)
 {
 	Oid			objectId;
 	Node	   *parsetree;
+	char	   *owner = context->include_owner ? cmd->role : NULL;
 
 	Assert(cmd->type == SCT_Simple);
 
@@ -3462,19 +3477,21 @@ deparse_simple_command(CollectedCommand *cmd)
 	switch (nodeTag(parsetree))
 	{
 		case T_AlterObjectSchemaStmt:
+			context->include_owner = false;
 			return deparse_AlterObjectSchemaStmt(cmd->d.simple.address,
 												 parsetree,
 												 cmd->d.simple.secondaryObject);
 
 		case T_AlterSeqStmt:
-			return deparse_AlterSeqStmt(objectId, parsetree);
+			return deparse_AlterSeqStmt(objectId, parsetree, owner);
 
 		case T_CreateSeqStmt:
-			return deparse_CreateSeqStmt(objectId, parsetree);
+			return deparse_CreateSeqStmt(objectId, parsetree, owner);
 
 		case T_CreateStmt:
-			return deparse_CreateStmt(objectId, parsetree);
+			return deparse_CreateStmt(objectId, parsetree, owner);
 		case T_RenameStmt:
+			context->include_owner = false;
 			return deparse_RenameStmt(cmd->d.simple.address, parsetree);
 
 		default:
@@ -3528,10 +3545,11 @@ deparse_utility_command(CollectedCommand *cmd, ddl_deparse_context * context)
 	switch (cmd->type)
 	{
 		case SCT_Simple:
-			jsonb = deparse_simple_command(cmd);
+			jsonb = deparse_simple_command(cmd, context);
 			break;
 		case SCT_AlterTable:
 			jsonb = deparse_AlterTableStmt(cmd, context);
+			context->include_owner = false;
 			break;
 		default:
 			elog(ERROR, "unexpected deparse node type %d", cmd->type);
@@ -3564,6 +3582,8 @@ ddl_deparse_to_json(PG_FUNCTION_ARGS)
 	CollectedCommand *cmd = (CollectedCommand *) PG_GETARG_POINTER(0);
 	char	   *command;
 	ddl_deparse_context context;
+
+	context.include_owner = false;
 
 	/*
 	 * Initialize the max_volatility flag to PROVOLATILE_IMMUTABLE, which is

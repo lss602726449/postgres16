@@ -4623,6 +4623,7 @@ getSubscriptions(Archive *fout)
 	int			i_subpublications;
 	int			i_subbinary;
 	int			i_subpasswordrequired;
+	int			i_submatchddlowner;
 	int			i,
 				ntups;
 
@@ -4677,11 +4678,13 @@ getSubscriptions(Archive *fout)
 	if (fout->remoteVersion >= 160000)
 		appendPQExpBufferStr(query,
 							 " s.suborigin,\n"
-							 " s.subpasswordrequired\n");
+							 " s.subpasswordrequired,\n"
+							 " s.submatchddlowner\n");
 	else
 		appendPQExpBuffer(query,
 						  " '%s' AS suborigin,\n"
-						  " 't' AS subpasswordrequired\n",
+						  " 't' AS subpasswordrequired,\n"
+						  " false AS submatchddlowner\n",
 						  LOGICALREP_ORIGIN_ANY);
 
 	appendPQExpBufferStr(query,
@@ -4711,6 +4714,7 @@ getSubscriptions(Archive *fout)
 	i_subdisableonerr = PQfnumber(res, "subdisableonerr");
 	i_suborigin = PQfnumber(res, "suborigin");
 	i_subpasswordrequired = PQfnumber(res, "subpasswordrequired");
+	i_submatchddlowner = PQfnumber(res, "submatchddlowner");
 
 	subinfo = pg_malloc(ntups * sizeof(SubscriptionInfo));
 
@@ -4743,6 +4747,8 @@ getSubscriptions(Archive *fout)
 		subinfo[i].suborigin = pg_strdup(PQgetvalue(res, i, i_suborigin));
 		subinfo[i].subpasswordrequired =
 			pg_strdup(PQgetvalue(res, i, i_subpasswordrequired));
+		subinfo[i].submatchddlowner =
+			pg_strdup(PQgetvalue(res, i, i_submatchddlowner));
 
 		/* Decide whether we want to dump it */
 		selectDumpableObject(&(subinfo[i].dobj), fout);
@@ -4820,6 +4826,9 @@ dumpSubscription(Archive *fout, const SubscriptionInfo *subinfo)
 
 	if (pg_strcasecmp(subinfo->suborigin, LOGICALREP_ORIGIN_ANY) != 0)
 		appendPQExpBuffer(query, ", origin = %s", subinfo->suborigin);
+
+	if (strcmp(subinfo->submatchddlowner, "f") == 0)
+		appendPQExpBufferStr(query, ", match_ddl_owner = false");
 
 	if (strcmp(subinfo->subsynccommit, "off") != 0)
 		appendPQExpBuffer(query, ", synchronous_commit = %s", fmtId(subinfo->subsynccommit));
