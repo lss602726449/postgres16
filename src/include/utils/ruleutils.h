@@ -55,6 +55,6 @@ extern char *flatten_reloptions(Oid relid);
 extern char *pg_get_statisticsobjdef_string(Oid statextid);
 
 extern char *relation_get_column_default(Relation rel, AttrNumber attno,
-										 List *dpcontext);
+										 List *dpcontext, Node **expr);
 
 #endif							/* RULEUTILS_H */

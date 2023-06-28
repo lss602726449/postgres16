@@ -18,8 +18,16 @@
 #define PG_PUBLICATION_H
 
 #include "catalog/genbki.h"
-#include "catalog/objectaddress.h"
 #include "catalog/pg_publication_d.h"
+#include "nodes/pg_list.h"
+
+/* Publication trigger events */
+#define PUB_TRIG_DDL_CMD_START "ddl_command_start"
+#define PUB_TRIG_DDL_CMD_END "ddl_command_end"
+#define PUB_TRIG_TBL_REWRITE "table_rewrite"
+
+/* Publication event trigger prefix */
+#define PUB_EVENT_TRIG_FORMAT "pg_deparse_trig_%s_%u"
 
 /* ----------------
  *		pg_publication definition.  cpp turns this into
@@ -54,6 +62,9 @@ CATALOG(pg_publication,6104,PublicationRelationId)
 
 	/* true if partition changes are published using root schema */
 	bool		pubviaroot;
+
+	/* true if table ddls are published */
+	bool		pubddl_table;
 } FormData_pg_publication;
 
 /* ----------------
@@ -72,6 +83,7 @@ typedef struct PublicationActions
 	bool		pubupdate;
 	bool		pubdelete;
 	bool		pubtruncate;
+	bool		pubddl_table;
 } PublicationActions;
 
 typedef struct PublicationDesc
@@ -102,13 +114,6 @@ typedef struct Publication
 	bool		pubviaroot;
 	PublicationActions pubactions;
 } Publication;
-
-typedef struct PublicationRelInfo
-{
-	Relation	relation;
-	Node	   *whereClause;
-	List	   *columns;
-} PublicationRelInfo;
 
 extern Publication *GetPublication(Oid pubid);
 extern Publication *GetPublicationByName(const char *pubname, bool missing_ok);
@@ -145,14 +150,6 @@ extern List *GetPubPartitionOptionRelations(List *result,
 extern Oid	GetTopMostAncestorInPublication(Oid puboid, List *ancestors,
 											int *ancestor_level);
 
-extern bool is_publishable_relation(Relation rel);
 extern bool is_schema_publication(Oid pubid);
-extern ObjectAddress publication_add_relation(Oid pubid, PublicationRelInfo *pri,
-											  bool if_not_exists);
-extern ObjectAddress publication_add_schema(Oid pubid, Oid schemaid,
-											bool if_not_exists);
-
-extern Bitmapset *pub_collist_to_bitmapset(Bitmapset *columns, Datum pubcols,
-										   MemoryContext mcxt);
 
 #endif							/* PG_PUBLICATION_H */

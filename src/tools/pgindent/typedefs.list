@@ -562,6 +562,7 @@ DefElemAction
 DefaultACLInfo
 DefineStmt
 DeleteStmt
+DeparsedCommandType
 DependencyGenerator
 DependencyGeneratorData
 DependencyType
@@ -1451,6 +1452,7 @@ LogicalDecodeBeginPrepareCB
 LogicalDecodeChangeCB
 LogicalDecodeCommitCB
 LogicalDecodeCommitPreparedCB
+LogicalDecodeDDLMessageCB
 LogicalDecodeFilterByOriginCB
 LogicalDecodeFilterPrepareCB
 LogicalDecodeMessageCB
@@ -1461,6 +1463,7 @@ LogicalDecodeStartupCB
 LogicalDecodeStreamAbortCB
 LogicalDecodeStreamChangeCB
 LogicalDecodeStreamCommitCB
+LogicalDecodeStreamDDLMessageCB
 LogicalDecodeStreamMessageCB
 LogicalDecodeStreamPrepareCB
 LogicalDecodeStreamStartCB
@@ -2305,6 +2308,7 @@ ReorderBufferChange
 ReorderBufferChangeType
 ReorderBufferCommitCB
 ReorderBufferCommitPreparedCB
+ReorderBufferDDLMessageCB
 ReorderBufferDiskChange
 ReorderBufferIterTXNEntry
 ReorderBufferIterTXNState
@@ -2314,6 +2318,7 @@ ReorderBufferRollbackPreparedCB
 ReorderBufferStreamAbortCB
 ReorderBufferStreamChangeCB
 ReorderBufferStreamCommitCB
+ReorderBufferStreamDDLMessageCB
 ReorderBufferStreamMessageCB
 ReorderBufferStreamPrepareCB
 ReorderBufferStreamStartCB
@@ -3877,6 +3882,7 @@ xl_heap_visible
 xl_invalid_page
 xl_invalid_page_key
 xl_invalidations
+xl_logical_ddl_message
 xl_logical_message
 xl_multi_insert_tuple
 xl_multixact_create

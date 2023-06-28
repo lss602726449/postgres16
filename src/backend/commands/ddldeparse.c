@@ -50,11 +50,14 @@
 #include "commands/tablespace.h"
 #include "commands/tablecmds.h"
 #include "funcapi.h"
+#include "optimizer/optimizer.h"
 #include "partitioning/partbounds.h"
+#include "rewrite/rewriteHandler.h"
 #include "tcop/ddldeparse.h"
 #include "tcop/utility.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/guc.h"
 #include "utils/jsonb.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
@@ -63,6 +66,26 @@
 
 /* Estimated length of the generated jsonb string */
 #define JSONB_ESTIMATED_LEN 128
+
+/*
+ * Mark the max_volatility flag for an expression in the command.
+ */
+static void
+mark_function_volatile(ddl_deparse_context * context, Node *expr)
+{
+	if (context->max_volatility == PROVOLATILE_VOLATILE)
+		return;
+
+	if (contain_volatile_functions(expr))
+	{
+		context->max_volatility = PROVOLATILE_VOLATILE;
+		return;
+	}
+
+	if (context->max_volatility == PROVOLATILE_IMMUTABLE &&
+		contain_mutable_functions(expr))
+		context->max_volatility = PROVOLATILE_STABLE;
+}
 
 /*
  * Return the string representation of the given RELPERSISTENCE value.
@@ -84,6 +107,40 @@ get_persistence_str(char persistence)
 			return NULL;		/* make compiler happy */
 	}
 }
+
+/*
+ * Mark the max_volatility flag for an expression in the constraint
+ */
+static void
+mark_constraint_expr_volatile(ddl_deparse_context * context, Oid constrOid)
+{
+	HeapTuple	tup;
+
+	tup = SearchSysCache1(CONSTROID, ObjectIdGetDatum(constrOid));
+
+	if (HeapTupleIsValid(tup))
+	{
+		bool		isnull;
+		Node	   *expr = NULL;
+		char	   *conbin;
+		Datum		val;
+
+		/* Fetch constraint expression in parsetree form */
+		val = SysCacheGetAttr(CONSTROID, tup,
+							  Anum_pg_constraint_conbin,
+							  &isnull);
+
+		if (!isnull)
+		{
+			conbin = TextDatumGetCString(val);
+			expr = stringToNode(conbin);
+			mark_function_volatile(context, expr);
+		}
+
+		ReleaseSysCache(tup);
+	}
+}
+
 
 /*
  * Insert JsonbValue key to the output parse state.
@@ -731,7 +788,7 @@ deparse_ColumnIdentity(JsonbParseState *state, char *parentKey,
 static void
 deparse_ColumnDef(JsonbParseState *state, Relation relation,
 				  List *dpcontext, bool composite, ColumnDef *coldef,
-				  bool is_alter)
+				  bool is_alter, Node **expr)
 {
 	Oid			relid = RelationGetRelid(relation);
 	HeapTuple	attrTup;
@@ -857,7 +914,7 @@ deparse_ColumnDef(JsonbParseState *state, Relation relation,
 			appendStringInfoString(&fmtStr, " %{default}s");
 
 			defstr = relation_get_column_default(relation, attrForm->attnum,
-												 dpcontext);
+												 dpcontext, expr);
 
 			insert_jsonb_key(state, "default");
 			pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
@@ -897,7 +954,7 @@ deparse_ColumnDef(JsonbParseState *state, Relation relation,
 
 			appendStringInfoString(&fmtStr, " %{generated_column}s");
 			defstr = relation_get_column_default(relation, attrForm->attnum,
-												 dpcontext);
+												 dpcontext, expr);
 
 			insert_jsonb_key(state, "generated_column");
 			pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
@@ -1034,7 +1091,7 @@ deparse_ColumnDef_typed(JsonbParseState *state, Relation relation,
 
 		appendStringInfoString(&fmtStr, " %{default}s");
 		defstr = relation_get_column_default(relation, attrForm->attnum,
-											 dpcontext);
+											 dpcontext, NULL);
 
 		insert_jsonb_key(state, "default");
 		pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
@@ -1085,7 +1142,8 @@ deparse_TableElems(JsonbParseState *state, Relation relation,
 												(ColumnDef *) elt);
 					else
 						deparse_ColumnDef(state, relation, dpcontext,
-										  composite, (ColumnDef *) elt, false);
+										  composite, (ColumnDef *) elt,
+										  false, NULL);
 				}
 				break;
 			case T_Constraint:
@@ -1719,11 +1777,12 @@ deparse_drop_table(const char *objidentity, Node *parsetree)
  * ALTER TABLE %{only}s %{identity}D %{subcmds:, }s
  */
 static Jsonb *
-deparse_AlterTableStmt(CollectedCommand *cmd)
+deparse_AlterTableStmt(CollectedCommand *cmd, ddl_deparse_context * context)
 {
 	List	   *dpcontext;
 	Relation	rel;
 	ListCell   *cell;
+	Node	   *expr = NULL;
 	Oid			relId = cmd->d.alterTable.objectId;
 	AlterTableStmt *stmt = NULL;
 	StringInfoData fmtStr;
@@ -1835,7 +1894,9 @@ deparse_AlterTableStmt(CollectedCommand *cmd)
 
 					deparse_ColumnDef(state, rel, dpcontext,
 									  false, (ColumnDef *) subcmd->def,
-									  true);
+									  true, &expr);
+
+					mark_function_volatile(context, expr);
 
 					/* We have full fmt by now, so add jsonb element for that */
 					new_jsonb_VA(state, 1, "fmt", jbvString, fmtSub.data);
@@ -1938,7 +1999,7 @@ deparse_AlterTableStmt(CollectedCommand *cmd)
 								 "column", jbvString, subcmd->name,
 								 "definition", jbvString,
 								 relation_get_column_default(rel, attno,
-															 dpcontext_rel));
+															 dpcontext_rel, NULL));
 
 					pushJsonbValue(&state, WJB_END_OBJECT, NULL);
 					ReleaseSysCache(attrtup);
@@ -2174,12 +2235,17 @@ deparse_AlterTableStmt(CollectedCommand *cmd)
 				{
 					/* XXX need to set the "recurse" bit somewhere? */
 					Oid			constrOid = sub->address.objectId;
+					Constraint *constr;
 
 					/* Skip adding constraint for inherits table sub command */
 					if (!OidIsValid(constrOid))
 						continue;
 
 					Assert(IsA(subcmd->def, Constraint));
+					constr = castNode(Constraint, subcmd->def);
+
+					if (!constr->skip_validation)
+						mark_constraint_expr_volatile(context, constrOid);
 
 					/*
 					 * Syntax: ADD CONSTRAINT %{name}I %{definition}s
@@ -2334,6 +2400,8 @@ deparse_AlterTableStmt(CollectedCommand *cmd)
 									 "expression", jbvString,
 									 sub->usingexpr);
 						pushJsonbValue(&state, WJB_END_OBJECT, NULL);
+						mark_function_volatile(context, def->cooked_default);
+
 					}
 
 					/* We have full fmt by now, so add jsonb element for that */
@@ -3421,7 +3489,7 @@ deparse_simple_command(CollectedCommand *cmd)
  * Workhorse to deparse a CollectedCommand.
  */
 char *
-deparse_utility_command(CollectedCommand *cmd)
+deparse_utility_command(CollectedCommand *cmd, ddl_deparse_context * context)
 {
 	OverrideSearchPath *overridePath;
 	MemoryContext oldcxt;
@@ -3463,7 +3531,7 @@ deparse_utility_command(CollectedCommand *cmd)
 			jsonb = deparse_simple_command(cmd);
 			break;
 		case SCT_AlterTable:
-			jsonb = deparse_AlterTableStmt(cmd);
+			jsonb = deparse_AlterTableStmt(cmd, context);
 			break;
 		default:
 			elog(ERROR, "unexpected deparse node type %d", cmd->type);
@@ -3495,8 +3563,15 @@ ddl_deparse_to_json(PG_FUNCTION_ARGS)
 {
 	CollectedCommand *cmd = (CollectedCommand *) PG_GETARG_POINTER(0);
 	char	   *command;
+	ddl_deparse_context context;
 
-	command = deparse_utility_command(cmd);
+	/*
+	 * Initialize the max_volatility flag to PROVOLATILE_IMMUTABLE, which is
+	 * the minimum volatility level.
+	 */
+	context.max_volatility = PROVOLATILE_IMMUTABLE;
+
+	command = deparse_utility_command(cmd, &context);
 
 	if (command)
 		PG_RETURN_TEXT_P(cstring_to_text(command));

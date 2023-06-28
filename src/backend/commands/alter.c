@@ -308,6 +308,23 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 		/* Wake up related replication workers to handle this change quickly */
 		LogicalRepWorkersWakeupAtCommit(objectId);
 	}
+	else if (classId == EventTriggerRelationId)
+	{
+		Form_pg_event_trigger evtForm = (Form_pg_event_trigger) GETSTRUCT(oldtup);
+
+		if (SearchSysCacheExists1(EVENTTRIGGERNAME, CStringGetDatum(new_name)))
+			report_name_conflict(classId, new_name);
+
+		/*
+		 * Event triggers created internally are not allowed to be altered by
+		 * user.
+		 */
+		if (evtForm->evtisinternal)
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("permission denied: \"%s\" is a system event trigger",
+							NameStr(evtForm->evtname))));
+	}
 	else if (nameCacheId >= 0)
 	{
 		if (OidIsValid(namespaceId))

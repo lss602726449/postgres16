@@ -3875,6 +3875,15 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</replaceable>:<replaceable>&l
 
      <row>
       <entry role="catalog_table_entry"><para role="column_definition">
+       <structfield>evtisinternal</structfield> <type>bool</type>
+      </para>
+      <para>
+       True if the event trigger is internally generated.
+      </para></entry>
+     </row>
+
+     <row>
+      <entry role="catalog_table_entry"><para role="column_definition">
        <structfield>evttags</structfield> <type>text[]</type>
       </para>
       <para>

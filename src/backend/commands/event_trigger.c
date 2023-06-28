@@ -58,7 +58,7 @@ static void AlterEventTriggerOwner_internal(Relation rel,
 static void error_duplicate_filter_variable(const char *defname);
 static Datum filter_list_to_array(List *filterlist);
 static Oid	insert_event_trigger_tuple(const char *trigname, const char *eventname,
-									   Oid evtOwner, Oid funcoid, List *taglist);
+									   Oid evtOwner, Oid funcoid, List *taglist, bool is_internal);
 static void validate_ddl_tags(const char *filtervar, List *taglist);
 static void validate_table_rewrite_tags(const char *filtervar, List *taglist);
 static void EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata);
@@ -69,7 +69,7 @@ static const char *stringify_adefprivs_objtype(ObjectType objtype);
  * Create an event trigger.
  */
 Oid
-CreateEventTrigger(CreateEventTrigStmt *stmt)
+CreateEventTrigger(CreateEventTrigStmt *stmt, bool is_internal)
 {
 	HeapTuple	tuple;
 	Oid			funcoid;
@@ -91,10 +91,10 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
 				 errhint("Must be superuser to create an event trigger.")));
 
 	/* Validate event name. */
-	if (strcmp(stmt->eventname, "ddl_command_start") != 0 &&
-		strcmp(stmt->eventname, "ddl_command_end") != 0 &&
-		strcmp(stmt->eventname, "sql_drop") != 0 &&
-		strcmp(stmt->eventname, "table_rewrite") != 0)
+	if (strcmp(stmt->eventname, TRIG_DDL_CMD_START) != 0 &&
+		strcmp(stmt->eventname, TRIG_DDL_CMD_END) != 0 &&
+		strcmp(stmt->eventname, TRIG_TBL_CMD_DROP) != 0 &&
+		strcmp(stmt->eventname, TRIG_TBL_REWRITE) != 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("unrecognized event name \"%s\"",
@@ -118,12 +118,12 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
 	}
 
 	/* Validate tag list, if any. */
-	if ((strcmp(stmt->eventname, "ddl_command_start") == 0 ||
-		 strcmp(stmt->eventname, "ddl_command_end") == 0 ||
-		 strcmp(stmt->eventname, "sql_drop") == 0)
+	if ((strcmp(stmt->eventname, TRIG_DDL_CMD_START) == 0 ||
+		 strcmp(stmt->eventname, TRIG_DDL_CMD_END) == 0 ||
+		 strcmp(stmt->eventname, TRIG_TBL_CMD_DROP) == 0)
 		&& tags != NULL)
 		validate_ddl_tags("tag", tags);
-	else if (strcmp(stmt->eventname, "table_rewrite") == 0
+	else if (strcmp(stmt->eventname, TRIG_TBL_REWRITE) == 0
 			 && tags != NULL)
 		validate_table_rewrite_tags("tag", tags);
 
@@ -149,7 +149,7 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
 
 	/* Insert catalog entries. */
 	return insert_event_trigger_tuple(stmt->trigname, stmt->eventname,
-									  evtowner, funcoid, tags);
+									  evtowner, funcoid, tags, is_internal);
 }
 
 /*
@@ -218,7 +218,7 @@ error_duplicate_filter_variable(const char *defname)
  */
 static Oid
 insert_event_trigger_tuple(const char *trigname, const char *eventname, Oid evtOwner,
-						   Oid funcoid, List *taglist)
+						   Oid funcoid, List *taglist, bool is_internal)
 {
 	Relation	tgrel;
 	Oid			trigoid;
@@ -246,6 +246,7 @@ insert_event_trigger_tuple(const char *trigname, const char *eventname, Oid evtO
 	values[Anum_pg_event_trigger_evtfoid - 1] = ObjectIdGetDatum(funcoid);
 	values[Anum_pg_event_trigger_evtenabled - 1] =
 		CharGetDatum(TRIGGER_FIRES_ON_ORIGIN);
+	values[Anum_pg_event_trigger_evtisinternal - 1] = BoolGetDatum(is_internal);
 	if (taglist == NIL)
 		nulls[Anum_pg_event_trigger_evttags - 1] = true;
 	else
@@ -524,6 +525,7 @@ EventTriggerCommonSetup(Node *parsetree,
 	List	   *cachelist;
 	ListCell   *lc;
 	List	   *runlist = NIL;
+	int			pub_deparse_func_cnt = 0;
 
 	/*
 	 * We want the list of command tags for which this procedure is actually
@@ -573,6 +575,12 @@ EventTriggerCommonSetup(Node *parsetree,
 	 * once we do anything at all that touches the catalogs, an invalidation
 	 * might leave cachelist pointing at garbage, so we must do this before we
 	 * can do much else.
+	 *
+	 * Special handling for event triggers created as part of publications.
+	 * If there are multiple publications which publish ddls, only one set of the
+	 * event trigger functions need to be invoked. The ddl deparse event triggers
+	 * write to WAL, so no need to duplicate it as all walsenders will read the same
+	 * WAL.
 	 */
 	foreach(lc, cachelist)
 	{
@@ -580,8 +588,26 @@ EventTriggerCommonSetup(Node *parsetree,
 
 		if (filter_event_trigger(tag, item))
 		{
-			/* We must plan to fire this trigger. */
-			runlist = lappend_oid(runlist, item->fnoid);
+			static const char *trigger_func_prefix = "publication_deparse_%s";
+			char		trigger_func_name[NAMEDATALEN];
+			Oid			pub_funcoid;
+			List 		*pub_funcname;
+
+			/* Get function oid of the publication's ddl deparse event trigger */
+			snprintf(trigger_func_name, sizeof(trigger_func_name), trigger_func_prefix,
+					 eventstr);
+			pub_funcname = SystemFuncName(trigger_func_name);
+			pub_funcoid = LookupFuncName(pub_funcname, 0, NULL, true);
+
+			if (item->fnoid == pub_funcoid)
+			{
+				/* Only the first ddl deparse event trigger needs to be invoked */
+				if (pub_deparse_func_cnt++ == 0)
+					runlist = lappend_oid(runlist, item->fnoid);
+			}
+			else
+				runlist = lappend_oid(runlist, item->fnoid);
+
 		}
 	}
 
@@ -627,7 +653,7 @@ EventTriggerDDLCommandStart(Node *parsetree)
 
 	runlist = EventTriggerCommonSetup(parsetree,
 									  EVT_DDLCommandStart,
-									  "ddl_command_start",
+									  TRIG_DDL_CMD_START,
 									  &trigdata);
 	if (runlist == NIL)
 		return;

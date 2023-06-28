@@ -36,6 +36,7 @@ CATALOG(pg_event_trigger,3466,EventTriggerRelationId)
 												 * called */
 	char		evtenabled;		/* trigger's firing configuration WRT
 								 * session_replication_role */
+	bool		evtisinternal;	/* trigger is system-generated */
 
 #ifdef CATALOG_VARLEN
 	text		evttags[1];		/* command TAGs this event trigger targets */

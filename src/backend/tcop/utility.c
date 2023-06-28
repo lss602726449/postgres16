@@ -895,7 +895,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 
 		case T_CreateEventTrigStmt:
 			/* no event triggers on event triggers */
-			CreateEventTrigger((CreateEventTrigStmt *) parsetree);
+			CreateEventTrigger((CreateEventTrigStmt *) parsetree, false);
 			break;
 
 		case T_AlterEventTrigStmt:
